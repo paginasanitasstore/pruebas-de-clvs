@@ -1,0 +1,744 @@
+<!-- Versión: v1.2.0-mejoras-esteticas -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Administrador de Cuentas</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<style>
+  :root {
+    --primary: #c2185b;
+    --primary-light: #e91e63;
+    --primary-dark: #880e4f;
+    --bg-soft: #fdf2f5;
+    --surface: #ffffff;
+    --text-main: #2d2d2d;
+    --text-muted: #666666;
+    --border: #f8bbd0;
+    --shadow: 0 4px 20px rgba(194, 24, 91, 0.08);
+    --shadow-hover: 0 8px 25px rgba(194, 24, 91, 0.15);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  
+  body { 
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; 
+    background: var(--bg-soft); 
+    color: var(--text-main); 
+    min-height: 100vh; 
+    font-size: 16px; 
+    line-height: 1.6; 
+  }
+  
+  /* --- LOGIN SCREEN --- */
+  #loginScreen { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: linear-gradient(135deg, var(--primary), var(--primary-light)); padding: 20px; }
+  .login-box { background: var(--surface); padding: 40px 30px; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); width: 100%; max-width: 440px; }
+  .login-box h2 { text-align: center; color: var(--primary); margin-bottom: 8px; font-size: 28px; font-weight: 700; }
+  .login-box p { text-align: center; color: var(--text-muted); margin-bottom: 30px; font-size: 15px; }
+  
+  .login-box input { width: 100%; padding: 14px 16px; margin-bottom: 16px; border: 2px solid #eee; border-radius: 10px; font-size: 16px; transition: all 0.3s; display: block; }
+  .login-box input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(194, 24, 91, 0.1); }
+  
+  .btn-eye-login { width: 100%; padding: 12px; background: var(--bg-soft); color: var(--primary); border: 2px solid var(--border); border-radius: 10px; font-size: 14px; cursor: pointer; margin-bottom: 16px; display: block; text-align: center; font-weight: 600; transition: all 0.3s; }
+  .btn-eye-login:hover { background: #fce4ec; }
+  
+  .login-box .btn-login { width: 100%; padding: 16px; background: var(--primary); color: #fff; border: none; border-radius: 10px; font-size: 17px; cursor: pointer; font-weight: 700; display: block; margin-bottom: 10px; transition: all 0.3s; box-shadow: 0 4px 15px rgba(194, 24, 91, 0.3); }
+  .login-box .btn-login:hover { background: var(--primary-dark); transform: translateY(-1px); }
+  
+  .login-error { color: #d32f2f; text-align: center; margin-top: 10px; font-size: 14px; font-weight: 600; display: none; background: #ffebee; padding: 10px; border-radius: 8px; }
+  .forgot-link { text-align: center; margin-top: 15px; }
+  .forgot-link a { color: var(--primary); font-size: 14px; text-decoration: none; cursor: pointer; font-weight: 600; }
+  .forgot-link a:hover { text-decoration: underline; }
+  
+  .forgot-box { display: none; margin-top: 20px; padding: 20px; background: var(--bg-soft); border-radius: 12px; border: 2px solid var(--border); }
+  .forgot-box h4 { color: var(--primary); margin-bottom: 15px; font-size: 16px; text-align: center; }
+  .forgot-box input { margin-bottom: 15px !important; }
+  .forgot-box .btn-forgot { background: var(--primary); padding: 12px; font-size: 15px; width: 100%; border: none; border-radius: 10px; color: white; cursor: pointer; font-weight: 600; }
+  
+  .forgot-result { margin-top: 15px; padding: 15px; background: #fff; border-radius: 10px; font-size: 15px; text-align: center; display: none; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+  .forgot-result.show { display: block; }
+  .forgot-result.error { color: #d32f2f; background: #ffebee; }
+  .forgot-result .clave-show { font-family: 'Courier New', monospace; font-size: 22px; color: var(--primary); font-weight: bold; margin: 15px 0; letter-spacing: 2px; word-break: break-all; }
+
+  /* --- APP LAYOUT --- */
+  #app { display: none; padding: 20px; max-width: 1400px; margin: 0 auto; }
+  
+  .header { display: flex; justify-content: space-between; align-items: center; background: var(--surface); padding: 20px 25px; border-radius: 16px; margin-bottom: 25px; box-shadow: var(--shadow); flex-wrap: wrap; gap: 15px; border-left: 6px solid var(--primary); }
+  .header h1 { color: var(--primary); font-size: 24px; font-weight: 700; }
+  .header .subtitle { color: var(--text-muted); font-size: 14px; margin-top: 4px; }
+  .btn-logout { background: var(--bg-soft); color: var(--primary); border: 2px solid var(--border); padding: 10px 20px; border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 700; transition: all 0.3s; }
+  .btn-logout:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+  
+  /* --- FORM CARD --- */
+  .form-card { background: var(--surface); padding: 25px; border-radius: 16px; margin-bottom: 25px; box-shadow: var(--shadow); border-left: 6px solid var(--primary-light); }
+  .form-card h3 { color: var(--primary); margin-bottom: 20px; font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; align-items: start; }
+  .form-group { display: flex; flex-direction: column; }
+  .form-group label { font-size: 14px; color: var(--text-main); margin-bottom: 8px; font-weight: 700; }
+  .form-group input, .form-group textarea, .form-group select { padding: 12px 14px; border: 2px solid #eee; border-radius: 10px; font-size: 16px; font-family: inherit; background: #fff; width: 100%; transition: all 0.3s; }
+  .form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(194, 24, 91, 0.1); }
+  .form-group textarea { resize: vertical; min-height: 80px; }
+  
+  /* --- FOTO UPLOAD MEJORADO --- */
+  .foto-upload { border: 2px dashed var(--border); border-radius: 12px; padding: 15px; text-align: center; background: var(--bg-soft); margin-top: 5px; transition: all 0.3s; }
+  .foto-upload:hover { border-color: var(--primary); background: #fce4ec; }
+  .foto-preview { width: 100%; max-height: 150px; object-fit: contain; margin-top: 15px; border-radius: 10px; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.1); display: none; }
+  .foto-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+  .foto-tab { flex: 1; padding: 10px; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; background: #fff; font-weight: 600; color: var(--text-muted); transition: all 0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+  .foto-tab.active { background: var(--primary); color: #fff; box-shadow: 0 4px 10px rgba(194, 24, 91, 0.3); }
+  .foto-input-file { font-size: 13px; width: 100%; padding: 8px; background: #fff; border-radius: 8px; }
+  .foto-url-input { width: 100%; padding: 10px; border: 2px solid #eee; border-radius: 8px; font-size: 14px; display: none; }
+  .foto-hint { font-size: 12px; color: var(--primary); margin-top: 10px; font-weight: 600; background: rgba(194, 24, 91, 0.1); padding: 8px; border-radius: 6px; }
+  
+  .btn-save { background: var(--primary); color: #fff; border: none; padding: 14px 20px; border-radius: 10px; cursor: pointer; font-weight: 700; font-size: 16px; margin-top: 25px; width: 100%; transition: all 0.3s; box-shadow: 0 4px 15px rgba(194, 24, 91, 0.3); }
+  .btn-save:hover { background: var(--primary-dark); transform: translateY(-2px); }
+  
+  /* --- RECORDS CARD --- */
+  .records-card { background: var(--surface); padding: 25px; border-radius: 16px; box-shadow: var(--shadow); border-left: 6px solid var(--primary); }
+  .records-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px; }
+  .records-header h3 { color: var(--primary); display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 700; }
+  .count-badge { background: var(--primary); color: #fff; border-radius: 20px; padding: 4px 12px; font-size: 14px; font-weight: 700; }
+  
+  .records-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn-pdf, .btn-clear, .btn-export, .btn-import { padding: 10px 16px; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 700; transition: all 0.3s; display: flex; align-items: center; gap: 6px; }
+  .btn-pdf { background: #4caf50; color: #fff; }
+  .btn-clear { background: #f44336; color: #fff; }
+  .btn-export { background: #2196f3; color: #fff; }
+  .btn-import { background: var(--primary); color: #fff; }
+  .btn-pdf:hover, .btn-clear:hover, .btn-export:hover, .btn-import:hover { transform: translateY(-2px); opacity: 0.9; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+  
+  .filter-bar { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; justify-content: center; background: var(--bg-soft); padding: 15px; border-radius: 12px; }
+  .filter-bar label { font-weight: 700; color: var(--primary); font-size: 14px; width: 100%; text-align: center; margin-bottom: 5px; }
+  .filter-btn { padding: 8px 16px; border: 2px solid var(--border); background: #fff; color: var(--primary); border-radius: 25px; cursor: pointer; font-size: 13px; font-weight: 700; transition: all 0.3s; }
+  .filter-btn:hover { border-color: var(--primary); background: #fce4ec; }
+  .filter-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: 0 4px 10px rgba(194, 24, 91, 0.3); }
+  
+  /* --- TABLE --- */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 12px; border: 1px solid #eee; }
+  table { width: 100%; border-collapse: collapse; min-width: 900px; }
+  thead th { background: var(--primary); color: #fff; padding: 16px 12px; text-align: left; font-size: 15px; font-weight: 700; white-space: nowrap; }
+  tbody td { padding: 16px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; font-size: 15px; word-wrap: break-word; }
+  tbody tr { transition: background 0.2s; }
+  tbody tr:hover { background-color: var(--bg-soft); }
+  tbody tr:last-child td { border-bottom: none; }
+  
+  .tipo-badge { display: inline-block; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; color: #fff; white-space: nowrap; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+  .tipo-email { background: #2196f3; }
+  .tipo-facebook { background: #1877f2; }
+  .tipo-instagram { background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); }
+  .tipo-tiktok { background: #000; }
+  .tipo-twitter { background: #1da1f2; }
+  .tipo-linkedin { background: #0a66c2; }
+  .tipo-tienda { background: var(--primary); }
+  .tipo-otra { background: #9e9e9e; }
+  
+  .td-user { font-size: 15px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 600; color: var(--text-main); }
+  
+  /* IMÁGENES ARREGLADAS: No se estiran, se ven como miniaturas pro */
+  .td-foto img { width: 60px; height: 60px; object-fit: cover; border-radius: 10px; border: 2px solid var(--border); box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+  
+  .clave-cell { display: flex; align-items: center; gap: 8px; font-family: 'Courier New', monospace; font-size: 15px; font-weight: 600; }
+  .clave-text { letter-spacing: 1px; color: var(--text-main); }
+  .btn-toggle { background: var(--bg-soft); border: 1px solid var(--border); color: var(--primary); cursor: pointer; font-size: 16px; padding: 6px 10px; border-radius: 8px; transition: all 0.2s; }
+  .btn-toggle:hover { background: var(--primary); color: #fff; }
+  
+  .btn-copy { background: #2196f3; color: #fff; border: none; cursor: pointer; font-size: 12px; padding: 6px 10px; border-radius: 6px; font-weight: 600; transition: all 0.2s; }
+  .btn-copy:hover { background: #1976d2; }
+  .btn-copy.copied { background: #4caf50; }
+  
+  .td-detalle { white-space: pre-wrap; word-break: break-word; font-size: 14px; line-height: 1.5; color: var(--text-muted); }
+  .td-accion { display: flex; gap: 8px; justify-content: center; }
+  .btn-edit, .btn-delete { border: none; background: var(--bg-soft); cursor: pointer; font-size: 18px; padding: 8px 12px; border-radius: 8px; transition: all 0.2s; }
+  .btn-edit:hover { background: #fff3e0; transform: scale(1.1); }
+  .btn-delete:hover { background: #ffebee; transform: scale(1.1); }
+  
+  .empty-state { text-align: center; padding: 50px 20px; color: var(--text-muted); font-size: 16px; }
+  
+  .toast { position: fixed; top: 20px; right: 20px; left: 20px; max-width: 400px; margin: 0 auto; background: #4caf50; color: #fff; padding: 16px 24px; border-radius: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.2); display: none; z-index: 1000; animation: slideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); font-size: 15px; text-align: center; font-weight: 600; }
+  @keyframes slideIn { from { transform: translateY(-100px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .toast.error { background: #f44336; }
+  #importFile { display: none; }
+
+  /* --- MOBILE RESPONSIVE (A PRUEBA DE QUIEBRES) --- */
+  @media (max-width: 768px) {
+    #app { padding: 15px; }
+    .header { flex-direction: column; text-align: center; padding: 20px; border-left: none; border-top: 6px solid var(--primary); }
+    .header h1 { font-size: 22px; }
+    .records-actions { justify-content: center; width: 100%; }
+    .records-actions button { flex: 1; min-width: 100px; font-size: 13px; padding: 12px 8px; justify-content: center; }
+    
+    thead { display: none; }
+    table, tbody, tr, td { display: block; width: 100%; }
+    table { min-width: 100%; }
+    tr { background: #fff; border: 1px solid var(--border); border-left: 5px solid var(--primary); border-radius: 12px; margin-bottom: 15px; padding: 15px; box-shadow: var(--shadow); }
+    td { display: flex; justify-content: space-between; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid #f5f5f5; text-align: right; word-break: break-word; font-size: 15px; }
+    td:last-child { border-bottom: none; padding-bottom: 0; }
+    td::before { content: attr(data-label); font-weight: 700; color: var(--primary); text-align: left; margin-right: 15px; flex: 0 0 35%; font-size: 14px; }
+    td > * { flex: 1; text-align: right; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+    
+    .tipo-badge { display: inline-block !important; margin: 2px 0; font-size: 13px; padding: 6px 12px; }
+    
+    /* Imagen en móvil: tamaño perfecto, no ocupa toda la pantalla */
+    .td-foto img { width: 70px; height: 70px; object-fit: cover; border-radius: 10px; }
+    
+    .clave-cell, .td-user { justify-content: flex-end !important; width: 100%; }
+    .td-accion { justify-content: flex-end !important; gap: 12px; margin-top: 5px; }
+    .btn-edit, .btn-delete { padding: 10px 15px; font-size: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <div class="login-box">
+    <h2>Acceso Administradores</h2>
+    <p>Iniciá sesión para gestionar tus cuentas</p>
+    <input type="text" id="loginUser" placeholder="Usuario" autocomplete="username">
+    <input type="password" id="loginPass" placeholder="Contraseña" autocomplete="current-password">
+    <button type="button" class="btn-eye-login" onclick="toggleLoginEye()">👁 Mostrar / Ocultar contraseña</button>
+    <button class="btn-login" onclick="doLogin()">Iniciar Sesión</button>
+    <div class="login-error" id="loginError">Credenciales inválidas. Intenta de nuevo.</div>
+    <div class="forgot-link"><a onclick="toggleForgot()">🔑 ¿Olvidaste tu clave?</a></div>
+    <div class="forgot-box" id="forgotBox">
+      <h4>Ingresá tu email autorizado</h4>
+      <input type="email" id="forgotEmail" placeholder="tu@email.com">
+      <button class="btn-forgot" onclick="recoverPassword()">Recuperar Clave</button>
+      <div class="forgot-result" id="forgotResult"></div>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+  <div class="header">
+    <div>
+      <h1>Administrador de Cuentas ☁️</h1>
+      <div class="subtitle">Tus datos sincronizados de forma segura</div>
+    </div>
+    <button class="btn-logout" onclick="doLogout()">Cerrar Sesión</button>
+  </div>
+  
+  <div class="form-card">
+    <h3 id="formTitle">✨ Agregar Nueva Cuenta</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Tipo de cuenta</label>
+        <select id="inputTipo">
+          <option value="email">📧 Email</option>
+          <option value="facebook">📘 Facebook</option>
+          <option value="instagram">📷 Instagram</option>
+          <option value="tiktok">🎵 TikTok</option>
+          <option value="twitter">🐦 Twitter/X</option>
+          <option value="linkedin">💼 LinkedIn</option>
+          <option value="tienda">🛒 Tienda/Shop</option>
+          <option value="otra">🌐 Otra</option>
+        </select>
+        <div class="foto-upload">
+          <div class="foto-tabs">
+            <button type="button" class="foto-tab active" data-mode="file" onclick="setFotoMode('file')">📁 Subir Archivo</button>
+            <button type="button" class="foto-tab" data-mode="url" onclick="setFotoMode('url')">🔗 Pegar URL</button>
+          </div>
+          <input type="file" id="fotoFile" class="foto-input-file" accept="image/*" onchange="previewFotoFile(this)">
+          <input type="text" id="fotoUrl" class="foto-url-input" placeholder="https://ejemplo.com/imagen.jpg" oninput="previewFotoUrl(this.value)">
+          <img id="fotoPreview" class="foto-preview">
+          <div class="foto-hint">💡 Recomendación: Usá URL en el celular. Las imágenes muy pesadas pueden ralentizar la base de datos.</div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Usuario / Email</label>
+        <input type="text" id="inputUser" placeholder="usuario@ejemplo.com o @usuario">
+      </div>
+      <div class="form-group">
+        <label>Contraseña</label>
+        <input type="text" id="inputClave" placeholder="Contraseña actual">
+      </div>
+      <div class="form-group">
+        <label>URL / Enlace (opcional)</label>
+        <input type="text" id="inputUrl" placeholder="https://...">
+      </div>
+      <div class="form-group">
+        <label>Detalles</label>
+        <textarea id="inputDetalle" placeholder="Información adicional, preguntas de seguridad, etc."></textarea>
+      </div>
+    </div>
+    <button class="btn-save" id="btnSave" onclick="saveEntry()">💾 Guardar Cuenta</button>
+    <button class="btn-save" id="btnCancel" onclick="cancelEdit()" style="background:#9e9e9e;margin-top:12px;display:none;box-shadow:none;">❌ Cancelar Edición</button>
+  </div>
+
+  <div class="records-card">
+    <div class="records-header">
+      <h3>📋 Cuentas guardadas <span class="count-badge" id="countBadge">0</span></h3>
+      <div class="records-actions">
+        <button class="btn-pdf" onclick="downloadPDF()">📄 PDF</button>
+        <button class="btn-export" onclick="exportJSON()">💾 Exportar</button>
+        <button class="btn-import" onclick="document.getElementById('importFile').click()">📂 Importar</button>
+        <input type="file" id="importFile" accept=".json" onchange="importJSON(this)">
+        <button class="btn-clear" onclick="clearAll()">🗑 Borrar Todo</button>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <label>Filtrar por tipo:</label>
+      <button class="filter-btn active" data-filter="todas" onclick="setFilter('todas')">Todas</button>
+      <button class="filter-btn" data-filter="email" onclick="setFilter('email')">📧 Email</button>
+      <button class="filter-btn" data-filter="facebook" onclick="setFilter('facebook')">📘 FB</button>
+      <button class="filter-btn" data-filter="instagram" onclick="setFilter('instagram')">📷 IG</button>
+      <button class="filter-btn" data-filter="tiktok" onclick="setFilter('tiktok')">🎵 TT</button>
+      <button class="filter-btn" data-filter="twitter" onclick="setFilter('twitter')">🐦 X</button>
+      <button class="filter-btn" data-filter="linkedin" onclick="setFilter('linkedin')">💼 IN</button>
+      <button class="filter-btn" data-filter="tienda" onclick="setFilter('tienda')">🛒 Tienda</button>
+      <button class="filter-btn" data-filter="otra" onclick="setFilter('otra')">🌐 Otra</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Tipo</th><th>Foto</th><th>Usuario / Email</th><th>Contraseña</th><th>Contraseña Antigua</th><th>Detalles / URL</th><th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ⚠️ TU CONFIGURACIÓN REAL DE FIREBASE ⚠️
+const firebaseConfig = {
+  apiKey: "AIzaSyC-cX2HfcrEXC7irlhfZpRMv3FXq2AzO90",
+  authDomain: "proyecto-block-de-claves.firebaseapp.com",
+  databaseURL: "https://proyecto-block-de-claves-default-rtdb.firebaseio.com",
+  projectId: "proyecto-block-de-claves",
+  storageBucket: "proyecto-block-de-claves.firebasestorage.app",
+  messagingSenderId: "333738875614",
+  appId: "1:333738875614:web:be263e78940836d566004f"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const EMAIL_AUTORIZADO = 'tucorreo@ejemplo.com'; // CAMBIAR POR EL TUYO
+const ADMIN_USER = 'admin'; // CAMBIAR POR EL TUYO
+const ADMIN_PASS = 'admin123'; // CAMBIAR POR EL TUYO
+
+const TIPO_LABELS = {
+  email: '📧 Email', facebook: '📘 Facebook', instagram: '📷 Instagram',
+  tiktok: '🎵 TikTok', twitter: '🐦 Twitter/X', linkedin: '💼 LinkedIn',
+  tienda: '🛒 Tienda', otra: '🌐 Otra'
+};
+
+let entries = [];
+let editingId = null;
+let currentFotoData = null;
+let fotoMode = 'file';
+let currentFilter = 'todas';
+
+function doLogin() {
+  const user = document.getElementById('loginUser').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginError');
+  if (user === ADMIN_USER && pass === ADMIN_PASS) {
+    errEl.style.display = 'none';
+    sessionStorage.setItem('logged', '1');
+    showApp();
+  } else { errEl.style.display = 'block'; }
+}
+
+function doLogout() {
+  sessionStorage.removeItem('logged');
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('loginUser').value = '';
+  document.getElementById('loginPass').value = '';
+}
+
+function showApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  loadEntries();
+}
+
+if (sessionStorage.getItem('logged') === '1') showApp();
+
+document.getElementById('loginPass').addEventListener('keypress', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('loginUser').addEventListener('keypress', e => { if (e.key === 'Enter') document.getElementById('loginPass').focus(); });
+
+function toggleLoginEye() {
+  const input = document.getElementById('loginPass');
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+function toggleForgot() {
+  const box = document.getElementById('forgotBox');
+  box.style.display = box.style.display === 'block' ? 'none' : 'block';
+  document.getElementById('forgotResult').classList.remove('show');
+  document.getElementById('forgotEmail').value = '';
+}
+
+function recoverPassword() {
+  const email = document.getElementById('forgotEmail').value.trim().toLowerCase();
+  const result = document.getElementById('forgotResult');
+  if (!email) { result.className = 'forgot-result show error'; result.innerHTML = '⚠️ Ingresá tu email'; return; }
+  if (email !== EMAIL_AUTORIZADO.toLowerCase()) { result.className = 'forgot-result show error'; result.innerHTML = '❌ Email no autorizado'; return; }
+  result.className = 'forgot-result show';
+  result.innerHTML = `✅ Tu clave es:<div class="clave-show">${ADMIN_PASS}</div><button class="btn-forgot" onclick="enviarClavePorMail('${email}')" style="margin-top:8px;">📧 Enviar por mail</button>`;
+}
+
+function enviarClavePorMail(email) {
+  const asunto = 'Recuperación de clave - Administrador de Cuentas';
+  const cuerpo = `Hola,%0D%0A%0D%0ATu clave de acceso es:%0D%0AUsuario: ${ADMIN_USER}%0D%0AContraseña: ${ADMIN_PASS}`;
+  window.location.href = `mailto:${email}?subject=${encodeURIComponent(asunto)}&body=${cuerpo}`;
+}
+
+async function loadEntries() {
+  toast('Conectando a la nube...');
+  try {
+    const snapshot = await db.ref('appData/cuentas').once('value');
+    if (snapshot.exists()) {
+      const data = snapshot.val();
+      entries = data.entries || [];
+    } else {
+      entries = [];
+    }
+    entries.forEach(e => { if (!e.tipo) e.tipo = 'email'; });
+    renderTable();
+    toast('✅ Datos cargados correctamente');
+  } catch (e) {
+    console.error("Error de Firebase:", e);
+    entries = [];
+    renderTable();
+    toast('❌ Error conectando. Revisá la consola (F12).', true);
+  }
+}
+
+async function saveToCloud() {
+  try {
+    await db.ref('appData/cuentas').set({ entries: entries });
+  } catch (e) {
+    console.error("Error al guardar:", e);
+    toast('❌ Error guardando en la nube.', true);
+  }
+}
+
+function setFotoMode(mode) {
+  fotoMode = mode;
+  document.querySelectorAll('.foto-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+  document.getElementById('fotoFile').style.display = mode === 'file' ? 'block' : 'none';
+  document.getElementById('fotoUrl').style.display = mode === 'url' ? 'block' : 'none';
+}
+
+function previewFotoFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) { toast('Imagen muy grande (máx 2MB)', true); input.value = ''; return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    currentFotoData = e.target.result;
+    const img = document.getElementById('fotoPreview');
+    img.src = currentFotoData;
+    img.style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+}
+
+function previewFotoUrl(url) {
+  currentFotoData = url.trim();
+  const img = document.getElementById('fotoPreview');
+  if (url.trim()) { img.src = url.trim(); img.style.display = 'block'; img.onerror = () => { img.style.display = 'none'; }; }
+  else { img.style.display = 'none'; }
+}
+
+function saveEntry() {
+  const tipo = document.getElementById('inputTipo').value;
+  const user = document.getElementById('inputUser').value.trim();
+  const clave = document.getElementById('inputClave').value.trim();
+  const url = document.getElementById('inputUrl').value.trim();
+  const detalle = document.getElementById('inputDetalle').value.trim();
+  
+  if (!user && !clave && !detalle && !currentFotoData) { toast('Completá al menos un campo', true); return; }
+  
+  const entry = {
+    id: editingId || Date.now().toString(),
+    tipo: tipo, user: user, clave: clave, claveAntigua: '',
+    url: url, detalle: detalle, foto: currentFotoData || '',
+    createdAt: editingId ? (entries.find(e => e.id === editingId)?.createdAt || Date.now()) : Date.now(),
+    updatedAt: Date.now()
+  };
+  
+  try {
+    if (editingId) {
+      const old = entries.find(e => e.id === editingId);
+      if (old && old.clave && old.clave !== clave) entry.claveAntigua = old.clave;
+      else if (old) entry.claveAntigua = old.claveAntigua || '';
+      const idx = entries.findIndex(e => e.id === editingId);
+      if (idx !== -1) entries[idx] = entry;
+      toast('Cuenta actualizada en la nube');
+      editingId = null;
+    } else {
+      entries.unshift(entry);
+      toast('Cuenta guardada en la nube');
+    }
+    saveToCloud();
+    clearForm();
+    renderTable();
+  } catch (e) { console.error(e); toast('Error al guardar', true); }
+}
+
+function deleteEntry(id) {
+  if (!confirm('¿Eliminar esta cuenta?')) return;
+  entries = entries.filter(e => e.id !== id);
+  saveToCloud();
+  renderTable();
+  toast('Cuenta eliminada de la nube');
+}
+
+function clearAll() {
+  if (!confirm('¿Borrar TODAS las cuentas de la nube?')) return;
+  if (!confirm('¿Seguro? Se perderán en todos tus dispositivos.')) return;
+  entries = [];
+  saveToCloud();
+  renderTable();
+  toast('Todo borrado de la nube');
+}
+
+function editEntry(id) {
+  const e = entries.find(x => x.id === id);
+  if (!e) return;
+  editingId = id;
+  document.getElementById('inputTipo').value = e.tipo || 'email';
+  document.getElementById('inputUser').value = e.user || '';
+  document.getElementById('inputClave').value = e.clave || '';
+  document.getElementById('inputUrl').value = e.url || '';
+  document.getElementById('inputDetalle').value = e.detalle || '';
+  currentFotoData = e.foto || '';
+  if (currentFotoData) {
+    const img = document.getElementById('fotoPreview');
+    img.src = currentFotoData;
+    img.style.display = 'block';
+  }
+  document.getElementById('formTitle').textContent = '✏️ Editando Cuenta';
+  document.getElementById('btnSave').textContent = '💾 Actualizar Cuenta';
+  document.getElementById('btnCancel').style.display = 'block';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelEdit() { clearForm(); }
+
+function clearForm() {
+  document.getElementById('inputTipo').value = 'email';
+  document.getElementById('inputUser').value = '';
+  document.getElementById('inputClave').value = '';
+  document.getElementById('inputUrl').value = '';
+  document.getElementById('inputDetalle').value = '';
+  document.getElementById('fotoFile').value = '';
+  document.getElementById('fotoUrl').value = '';
+  document.getElementById('fotoPreview').style.display = 'none';
+  document.getElementById('formTitle').textContent = '✨ Agregar Nueva Cuenta';
+  document.getElementById('btnSave').textContent = '💾 Guardar Cuenta';
+  document.getElementById('btnCancel').style.display = 'none';
+  currentFotoData = null;
+  editingId = null;
+}
+
+function setFilter(filter) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === filter));
+  renderTable();
+}
+
+function renderTable() {
+  const tbody = document.getElementById('tbody');
+  const filtered = currentFilter === 'todas' ? entries : entries.filter(e => e.tipo === currentFilter);
+  document.getElementById('countBadge').textContent = filtered.length + (currentFilter !== 'todas' ? ' / ' + entries.length : '');
+  
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-state">📭 No hay cuentas ${currentFilter !== 'todas' ? 'de este tipo' : 'aún'}<br><small>Agregá tu primera cuenta usando el formulario de arriba</small></td></tr>`;
+    return;
+  }
+  
+  tbody.innerHTML = filtered.map(e => {
+    const tipo = e.tipo || 'email';
+    const tipoLabel = TIPO_LABELS[tipo] || tipo;
+    const user = e.user || '';
+    const clave = e.clave || '';
+    const claveAntigua = e.claveAntigua || '';
+    const url = e.url || '';
+    const detalle = e.detalle || '';
+    const userId = 'u_' + e.id;
+    const claveId = 'c_' + e.id;
+    const claveAntId = 'ca_' + e.id;
+    const detalleCompleto = [url ? '🔗 ' + url : '', detalle].filter(x => x).join('\n');
+    
+    return `
+    <tr>
+      <td data-label="Tipo"><span class="tipo-badge tipo-${escapeHtml(tipo)}">${escapeHtml(tipoLabel)}</span></td>
+      <td data-label="Foto" class="td-foto">
+        ${e.foto ? `<img src="${escapeHtml(e.foto)}" alt="foto" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgdmlld0JveD0iMCAwIDYwIDYwIj48cmVjdCB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIGZpbGw9IiNmNWY1ZjUiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZm9udC1zaXplPSIyMCIgZmlsbD0iI2NjYyIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPj88L3RleHQ+PC9zdmc+'">` : '<span style="color:#ccc; font-size:13px;">Sin foto</span>'}
+      </td>
+      <td data-label="Usuario" class="td-user">
+        <span class="user-text" id="${userId}">${escapeHtml(user)}</span>
+        ${user ? `<button class="btn-copy" onclick="copiarAlPortapapeles('${userId}', '${encodeAttr(user)}')" title="Copiar">📋</button>` : ''}
+      </td>
+      <td data-label="Contraseña">
+        <div class="clave-cell">
+          <span class="clave-text" id="${claveId}" data-clave="${encodeAttr(clave)}">••••••••</span>
+          <button class="btn-toggle" onclick="toggleClave('${claveId}')" title="Mostrar/ocultar">👁</button>
+          ${clave ? `<button class="btn-copy" onclick="copiarClave('${claveId}')" title="Copiar">📋</button>` : ''}
+        </div>
+      </td>
+      <td data-label="Clave Antigua">
+        <div class="clave-cell">
+          <span class="clave-text" id="${claveAntId}" data-clave="${encodeAttr(claveAntigua)}">
+            ${claveAntigua ? '••••••••' : '<span style="color:#ccc">-</span>'}
+          </span>
+          <button class="btn-toggle" onclick="toggleClave('${claveAntId}')" title="Mostrar/ocultar">👁</button>
+          ${claveAntigua ? `<button class="btn-copy" onclick="copiarClave('${claveAntId}')" title="Copiar">📋</button>` : ''}
+        </div>
+      </td>
+      <td data-label="Detalles" class="td-detalle">${escapeHtml(detalleCompleto) || '<span style="color:#ccc">-</span>'}</td>
+      <td data-label="Acciones" class="td-accion">
+        <button class="btn-edit" onclick="editEntry('${e.id}')" title="Editar">✏️</button>
+        <button class="btn-delete" onclick="deleteEntry('${e.id}')" title="Eliminar">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function toggleClave(id) {
+  const span = document.getElementById(id);
+  if (!span) return;
+  const real = decodeAttr(span.getAttribute('data-clave') || '');
+  const isHidden = span.textContent === '••••••••' || span.textContent === '-';
+  span.textContent = isHidden ? (real || '(vacío)') : (real ? '••••••••' : '-');
+}
+
+function copiarClave(id) {
+  const span = document.getElementById(id);
+  if (!span) return;
+  const real = decodeAttr(span.getAttribute('data-clave') || '');
+  if (!real) { toast('No hay nada para copiar', true); return; }
+  copiarTexto(real, span);
+}
+
+function copiarAlPortapapeles(elementId, encodedText) {
+  const text = decodeAttr(encodedText);
+  const element = document.getElementById(elementId);
+  copiarTexto(text, element);
+}
+
+function copiarTexto(texto, elemento) {
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(texto).then(() => mostrarCopiado(elemento)).catch(() => fallbackCopiar(texto, elemento));
+  } else fallbackCopiar(texto, elemento);
+}
+
+function fallbackCopiar(texto, elemento) {
+  const textArea = document.createElement('textarea');
+  textArea.value = texto;
+  textArea.style.position = 'fixed';
+  textArea.style.left = '-999999px';
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+  try { document.execCommand('copy'); mostrarCopiado(elemento); }
+  catch (err) { toast('Error al copiar', true); }
+  document.body.removeChild(textArea);
+}
+
+function mostrarCopiado(elemento) {
+  let btn = elemento.nextElementSibling;
+  if (!btn || !btn.classList.contains('btn-copy')) btn = elemento.parentElement.querySelector('.btn-copy');
+  if (btn) {
+    const textoOriginal = btn.textContent;
+    btn.textContent = '✓ Copiado';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '📋'; btn.classList.remove('copied'); }, 1500);
+  }
+  toast('¡Copiado al portapapeles!');
+}
+
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function encodeAttr(s) { try { return btoa(unescape(encodeURIComponent(s || ''))); } catch(e) { return ''; } }
+function decodeAttr(s) { if (!s) return ''; try { return decodeURIComponent(escape(atob(s))); } catch(e) { return s; } }
+
+function downloadPDF() {
+  if (!entries.length) { toast('No hay datos para exportar', true); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  doc.setFontSize(18);
+  doc.setTextColor(194, 24, 91);
+  doc.text('Administrador de Cuentas - Registros', 14, 15);
+  doc.setFontSize(11);
+  doc.setTextColor(100);
+  doc.text(`Generado: ${new Date().toLocaleString()}`, 14, 22);
+  const body = entries.map(e => [
+    TIPO_LABELS[e.tipo] || e.tipo || '',
+    e.user || '',
+    e.clave || '',
+    e.claveAntigua || '',
+    [e.url, e.detalle].filter(x => x).join(' | ')
+  ]);
+  doc.autoTable({
+    startY: 28,
+    head: [['Tipo', 'Usuario/Email', 'Contraseña', 'Contraseña Antigua', 'URL / Detalles']],
+    body: body,
+    styles: { fontSize: 9, cellPadding: 3, overflow: 'linebreak', halign: 'left', valign: 'top' },
+    headStyles: { fillColor: [194, 24, 91], textColor: 255, fontStyle: 'bold', fontSize: 10 },
+    columnStyles: { 0: { cellWidth: 25 }, 1: { cellWidth: 55 }, 2: { cellWidth: 45 }, 3: { cellWidth: 45 }, 4: { cellWidth: 'auto' } },
+    margin: { left: 10, right: 10 }
+  });
+  doc.save(`cuentas_${Date.now()}.pdf`);
+  toast('PDF descargado correctamente');
+}
+
+function exportJSON() {
+  if (!entries.length) { toast('No hay datos para exportar', true); return; }
+  const dataStr = JSON.stringify(entries, null, 2);
+  const blob = new Blob([dataStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `backup_cuentas_${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Backup exportado correctamente');
+}
+
+function importJSON(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!Array.isArray(data)) throw new Error('Formato inválido');
+      if (!confirm(`¿Importar ${data.length} cuentas a la nube?`)) return;
+      entries = [...data, ...entries];
+      entries.forEach(e => { if (!e.tipo) e.tipo = 'email'; });
+      saveToCloud();
+      renderTable();
+      toast(`${data.length} cuentas importadas a la nube`);
+    } catch (err) { toast('Error al importar el archivo', true); }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+function toast(msg, isError=false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (isError ? ' error' : '');
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 3000);
+}
+
+setFotoMode('file');
+</script>
+</body>
+</html>
